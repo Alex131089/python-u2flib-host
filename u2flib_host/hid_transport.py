@@ -66,11 +66,10 @@ U2F_VENDOR_FIRST = 0x40
 # USB Commands -- 
 CMD_PING = 0x01 # https://github.com/Yubico/python-u2flib-host/pull/18 & 
 CMD_APDU = 0x03
-CMD_LOCK = 0x04
+CMD_LOCK = 0x04 # https://github.com/peter-conalgo/python-u2flib-host/blob/47b965aec6c78a23ab04a38c746df13000d802b1/u2flib_host/hid_transport.py
 CMD_INIT = 0x06
 CMD_WINK = 0x08
 
- # https://github.com/peter-conalgo/python-u2flib-host/blob/47b965aec6c78a23ab04a38c746df13000d802b1/u2flib_host/hid_transport.py
 U2FHID_YUBIKEY_DEVICE_CONFIG = U2F_VENDOR_FIRST
 
 # Cap flags -- https://github.com/Yubico/libu2f-host/blob/master/u2f-host/inc/u2f_hid.h#L105
