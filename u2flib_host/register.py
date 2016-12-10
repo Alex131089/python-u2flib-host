@@ -98,7 +98,7 @@ def main():
     facet = args.facet
     if args.infile:
         with open(args.infile, 'r') as f:
-            data = f.readline()
+            data = f.read()
     else:
         if sys.stdin.isatty():
             sys.stderr.write('Enter RegistrationRequest JSON data...\n')
