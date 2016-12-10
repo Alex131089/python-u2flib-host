@@ -37,6 +37,12 @@ from u2flib_host.device import U2FDevice
 from u2flib_host.yubicommon.compat import byte2int, int2byte
 from u2flib_host import exc
 
+# https://github.com/Yubico/python-yubicommon/blob/master/yubicommon/compat.py : byte2int is broken for PY3 ..
+def byte2int(i):
+    if isinstance(i, int): # An extracted byte in py3 is an int
+        return i
+    return ord(i)
+
 DEVICES = [
     (0x1050, 0x0200),  # Gnubby
     (0x1050, 0x0113),  # YubiKey NEO U2F
@@ -51,33 +57,44 @@ DEVICES = [
     (0x1050, 0x0407),  # YubiKey 4 OTP+U2F+CCID
     (0x2581, 0xf1d0),  # Plug-Up U2F Security Key
 ]
+#DEVICES_WIN = ['vid_{:04x}&pid_{:04x}'.format(vid,pid).encode() for vid,pid in DEVICES]
 HID_RPT_SIZE = 64
 
 TYPE_INIT = 0x80
 U2F_VENDOR_FIRST = 0x40
 
-# USB Commands
+# USB Commands -- 
+CMD_PING = 0x01 # https://github.com/Yubico/python-u2flib-host/pull/18 & 
+CMD_APDU = 0x03
+CMD_LOCK = 0x04
 CMD_INIT = 0x06
 CMD_WINK = 0x08
-CMD_APDU = 0x03
+
+ # https://github.com/peter-conalgo/python-u2flib-host/blob/47b965aec6c78a23ab04a38c746df13000d802b1/u2flib_host/hid_transport.py
 U2FHID_YUBIKEY_DEVICE_CONFIG = U2F_VENDOR_FIRST
+
+# Cap flags -- https://github.com/Yubico/libu2f-host/blob/master/u2f-host/inc/u2f_hid.h#L105
+CAPFLAG_WINK = 0x01 # Device supports WINK command
+CAPFLAG_LOCK = 0x02 # Device supports LOCK command
 
 STAT_ERR = 0xbf
 
 def list_devices():
     devices = []
     for d in hid.enumerate(0, 0):
-        usage_page = d['usage_page']
-        if usage_page == 0xf1d0 and d['usage'] == 1:
+        if d['usage_page'] == 0xf1d0 and d['usage'] == 1:
             devices.append(HIDDevice(d['path']))
         # Usage page doesn't work on Linux
         elif (d['vendor_id'], d['product_id']) in DEVICES:
+        #elif (d['vendor_id'], d['product_id']) in DEVICES or any((dev in d['path'] for dev in DEVICES_WIN)):
             device = HIDDevice(d['path'])
             try:
                 device.open()
                 device.close()
                 devices.append(HIDDevice(d['path']))
             except exc.DeviceError:
+                pass
+            except OSError: # OSError: open failed
                 pass
     return devices
 
@@ -124,7 +141,16 @@ class HIDDevice(U2FDevice):
         while resp[:8] != nonce:
             print("Wrong nonce, read again...")
             resp = self._read_resp(self.cid, CMD_INIT)
+        self.initRes = resp
         self.cid = resp[8:12]
+        self.versionInterface = byte2int(resp[12:13])
+        self.versionMajor = byte2int(resp[13:14])
+        self.versionMinor = byte2int(resp[14:15])
+        self.versionBuild = byte2int(resp[15:16])
+        self.version = '{}.{}.{}'.format(self.versionMajor, self.versionMinor, self.versionBuild)
+        self.capFlags = byte2int(resp[16:17])
+        self.capWink = CAPFLAG_WINK & self.capFlags == CAPFLAG_WINK
+        self.capLock = CAPFLAG_LOCK & self.capFlags == CAPFLAG_LOCK
 
     def set_mode(self, mode):
         data = mode + b"\x0f\x00\x00"
@@ -135,6 +161,15 @@ class HIDDevice(U2FDevice):
 
     def wink(self):
         self.call(CMD_WINK)
+
+    def ping(self, msg=b'Hello U2F'):
+        resp = self.call(CMD_PING, msg)
+        if resp != msg:
+            raise exc.DeviceError("Incorrect PING readback")
+        return resp
+
+    def lock(self, lock_time=10):
+        self.call(CMD_LOCK, lock_time)
 
     def _send_req(self, cid, cmd, data):
         size = len(data)
@@ -160,7 +195,7 @@ class HIDDevice(U2FDevice):
             resp_vals = _read_timeout(self.handle, HID_RPT_SIZE)
             resp = b''.join(int2byte(v) for v in resp_vals)
             if resp[:5] == cid + int2byte(STAT_ERR):
-                raise U2FHIDError(byte2int(resp[6]))
+                raise U2FHIDError(byte2int(resp[7]))
 
         if not resp:
             raise exc.DeviceError("Invalid response from device!")
