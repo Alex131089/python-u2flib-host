@@ -37,12 +37,6 @@ from u2flib_host.device import U2FDevice
 from u2flib_host.yubicommon.compat import byte2int, int2byte
 from u2flib_host import exc
 
-# https://github.com/Yubico/python-yubicommon/blob/master/yubicommon/compat.py : byte2int is broken for PY3 ..
-def byte2int(i):
-    if isinstance(i, int): # An extracted byte in py3 is an int
-        return i
-    return ord(i)
-
 DEVICES = [
     (0x1050, 0x0200),  # Gnubby
     (0x1050, 0x0113),  # YubiKey NEO U2F
