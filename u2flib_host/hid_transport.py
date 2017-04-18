@@ -51,13 +51,12 @@ DEVICES = [
     (0x1050, 0x0407),  # YubiKey 4 OTP+U2F+CCID
     (0x2581, 0xf1d0),  # Plug-Up U2F Security Key
 ]
-#DEVICES_WIN = ['vid_{:04x}&pid_{:04x}'.format(vid,pid).encode() for vid,pid in DEVICES]
 HID_RPT_SIZE = 64
 
 TYPE_INIT = 0x80
 U2F_VENDOR_FIRST = 0x40
 
-# USB Commands -- 
+# USB Commands
 CMD_PING = 0x01 # https://github.com/Yubico/python-u2flib-host/pull/18 & 
 CMD_APDU = 0x03
 CMD_LOCK = 0x04 # https://github.com/peter-conalgo/python-u2flib-host/blob/47b965aec6c78a23ab04a38c746df13000d802b1/u2flib_host/hid_transport.py
@@ -79,7 +78,6 @@ def list_devices():
             devices.append(HIDDevice(d['path']))
         # Usage page doesn't work on Linux
         elif (d['vendor_id'], d['product_id']) in DEVICES:
-        #elif (d['vendor_id'], d['product_id']) in DEVICES or any((dev in d['path'] for dev in DEVICES_WIN)):
             device = HIDDevice(d['path'])
             try:
                 device.open()
@@ -136,12 +134,12 @@ class HIDDevice(U2FDevice):
             resp = self._read_resp(self.cid, CMD_INIT)
         self.initRes = resp
         self.cid = resp[8:12]
-        self.versionInterface = byte2int(resp[12:13])
-        self.versionMajor = byte2int(resp[13:14])
-        self.versionMinor = byte2int(resp[14:15])
-        self.versionBuild = byte2int(resp[15:16])
+        self.versionInterface = byte2int(resp[12])
+        self.versionMajor = byte2int(resp[13])
+        self.versionMinor = byte2int(resp[14])
+        self.versionBuild = byte2int(resp[15])
         self.version = '{}.{}.{}'.format(self.versionMajor, self.versionMinor, self.versionBuild)
-        self.capFlags = byte2int(resp[16:17])
+        self.capFlags = byte2int(resp[16])
         self.capWink = CAPFLAG_WINK & self.capFlags == CAPFLAG_WINK
         self.capLock = CAPFLAG_LOCK & self.capFlags == CAPFLAG_LOCK
 
@@ -203,7 +201,7 @@ class HIDDevice(U2FDevice):
             resp = b''.join(int2byte(v) for v in resp_vals)
             if resp[:4] != cid:
                 raise exc.DeviceError("Wrong CID from device!")
-            if byte2int(resp[4:5]) != seq & 0x7f:
+            if byte2int(resp[4]) != seq & 0x7f:
                 raise exc.DeviceError("Wrong SEQ from device!")
             seq += 1
             new_data = resp[5:min(5 + data_len, HID_RPT_SIZE)]
